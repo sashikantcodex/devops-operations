@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-green
+  namespace: mern-app
+  labels:
+    app: backend
+    slot: green
+    version: v2
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+      slot: green
+  template:
+    metadata:
+      labels:
+        app: backend
+        slot: green
+        version: v2
+    spec:
+      containers:
+        - name: backend
+          image: YOUR_ECR_REPO/mern-backend:v2
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5

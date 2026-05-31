@@ -1,0 +1,84 @@
+name: CD - Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["CI - Build, Test & Push"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy environment'
+        required: true
+        default: 'production'
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: 'Image tag to deploy'
+        required: false
+        default: 'latest'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  CLUSTER_NAME: mern-devops-cluster
+  NAMESPACE: mern-app
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ "${{ github.event.inputs.image_tag }}" != "" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install mern-app ./helm/mern-app \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --set backend.image.tag=${{ steps.tag.outputs.tag }} \
+            --set frontend.image.tag=${{ steps.tag.outputs.tag }} \
+            --set backend.image.repository=${{ env.ECR_REGISTRY }}/mern-backend \
+            --set frontend.image.repository=${{ env.ECR_REGISTRY }}/mern-frontend \
+            --atomic \
+            --timeout 5m \
+            --wait
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/backend -n ${{ env.NAMESPACE }} --timeout=3m
+          kubectl rollout status deployment/frontend -n ${{ env.NAMESPACE }} --timeout=3m
+          kubectl get pods -n ${{ env.NAMESPACE }}
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Rolling back..."
+          helm rollback mern-app -n ${{ env.NAMESPACE }}

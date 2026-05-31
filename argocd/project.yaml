@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mern-devops
+  namespace: argocd
+spec:
+  description: MERN Stack DevOps Project
+  sourceRepos:
+    - 'https://github.com/YOUR_ORG/devops-operations.git'
+  destinations:
+    - namespace: mern-app
+      server: https://kubernetes.default.svc
+    - namespace: mern-app-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: 'apps'
+      kind: Deployment
+    - group: 'apps'
+      kind: StatefulSet
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: 'networking.k8s.io'
+      kind: Ingress
+    - group: 'autoscaling'
+      kind: HorizontalPodAutoscaler
+  roles:
+    - name: developer
+      policies:
+        - p, proj:mern-devops:developer, applications, get, mern-devops/*, allow
+        - p, proj:mern-devops:developer, applications, sync, mern-devops/*, allow

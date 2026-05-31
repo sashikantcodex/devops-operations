@@ -1,0 +1,71 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mern-backend-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - mern-app
+  selector:
+    matchLabels:
+      app: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mern-app-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: mern-app
+      interval: 30s
+      rules:
+        - alert: BackendHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[5m])) /
+            sum(rate(http_requests_total[5m])) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High backend error rate (>5%)"
+            description: "Error rate is {{ $value | humanizePercentage }}"
+
+        - alert: BackendHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              rate(http_request_duration_seconds_bucket[5m])
+            ) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Backend p95 latency > 1s"
+
+        - alert: PodRestartingTooMuch
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="mern-app"}[1h]) > 5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} restarting frequently"
+
+        - alert: MongoDBDown
+          expr: |
+            kube_statefulset_status_ready_replicas{namespace="mern-app", statefulset="mongodb"} < 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "MongoDB StatefulSet has 0 ready replicas"

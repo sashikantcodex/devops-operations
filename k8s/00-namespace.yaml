@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mern-app
+  labels:
+    name: mern-app
+    environment: production
+    managed-by: kubectl

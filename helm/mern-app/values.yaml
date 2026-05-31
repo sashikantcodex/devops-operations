@@ -1,0 +1,76 @@
+global:
+  namespace: mern-app
+  imageRegistry: ""
+
+backend:
+  replicaCount: 2
+  image:
+    repository: YOUR_ECR_REPO/mern-backend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 5000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: YOUR_ECR_REPO/mern-frontend
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7.0"
+  auth:
+    rootUsername: mongo-user
+    rootPassword: mongo-pass
+    database: merndb
+  storage:
+    size: 5Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: yourdomain.com
+  apiHost: api.yourdomain.com
+  tls:
+    enabled: true
+    secretName: mern-tls
+    clusterIssuer: letsencrypt-prod
+
+monitoring:
+  enabled: true
+  serviceMonitor: true

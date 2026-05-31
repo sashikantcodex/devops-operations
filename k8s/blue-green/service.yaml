@@ -1,0 +1,17 @@
+# Active service — change selector.slot to switch traffic between blue and green
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: mern-app
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+    slot: blue   # Change to 'green' to switch traffic
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP

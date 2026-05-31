@@ -1,0 +1,41 @@
+# Single service routes to BOTH stable and canary (pod-count ratio = traffic split)
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: mern-app
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend   # matches both stable and canary pods
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+---
+# Nginx Ingress canary — header-based routing for explicit canary testing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend-canary-ingress
+  namespace: mern-app
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "always"
+spec:
+  rules:
+    - host: api.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 5000

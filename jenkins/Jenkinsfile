@@ -1,0 +1,191 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+                apiVersion: v1
+                kind: Pod
+                spec:
+                  containers:
+                  - name: docker
+                    image: docker:24-dind
+                    securityContext:
+                      privileged: true
+                  - name: kubectl
+                    image: bitnami/kubectl:latest
+                    command: ["cat"]
+                    tty: true
+                  - name: helm
+                    image: alpine/helm:3.12.0
+                    command: ["cat"]
+                    tty: true
+                  - name: node
+                    image: node:20-alpine
+                    command: ["cat"]
+                    tty: true
+            '''
+        }
+    }
+
+    environment {
+        AWS_REGION       = 'us-east-1'
+        ECR_REGISTRY     = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        CLUSTER_NAME     = 'mern-devops-cluster'
+        NAMESPACE        = 'mern-app'
+        IMAGE_TAG        = "${GIT_COMMIT[0..7]}"
+        BACKEND_IMAGE    = "${ECR_REGISTRY}/mern-backend:${IMAGE_TAG}"
+        FRONTEND_IMAGE   = "${ECR_REGISTRY}/mern-frontend:${IMAGE_TAG}"
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Building commit: ${GIT_COMMIT} on branch: ${GIT_BRANCH}"
+            }
+        }
+
+        stage('Test Backend') {
+            steps {
+                container('node') {
+                    dir('app/backend') {
+                        sh 'npm ci'
+                        sh 'npm test'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'app/backend/junit.xml'
+                }
+            }
+        }
+
+        stage('Test Frontend') {
+            steps {
+                container('node') {
+                    dir('app/frontend') {
+                        sh 'npm ci'
+                        sh 'npm test -- --watchAll=false --passWithNoTests'
+                        sh 'npm run build'
+                    }
+                }
+            }
+        }
+
+        stage('Build & Push Images') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                }
+            }
+            steps {
+                container('docker') {
+                    withCredentials([
+                        string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID'),
+                        [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']
+                    ]) {
+                        sh """
+                            aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+                            docker build -t ${BACKEND_IMAGE} app/backend/
+                            docker push ${BACKEND_IMAGE}
+                            docker tag ${BACKEND_IMAGE} ${ECR_REGISTRY}/mern-backend:latest
+                            docker push ${ECR_REGISTRY}/mern-backend:latest
+
+                            docker build -t ${FRONTEND_IMAGE} \
+                                --build-arg REACT_APP_VERSION=${IMAGE_TAG} \
+                                app/frontend/
+                            docker push ${FRONTEND_IMAGE}
+                            docker tag ${FRONTEND_IMAGE} ${ECR_REGISTRY}/mern-frontend:latest
+                            docker push ${ECR_REGISTRY}/mern-frontend:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when { branch 'develop' }
+            steps {
+                container('helm') {
+                    withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                        sh """
+                            helm upgrade --install mern-app-staging ./helm/mern-app \
+                                --namespace mern-app-staging \
+                                --create-namespace \
+                                --set backend.image.tag=${IMAGE_TAG} \
+                                --set frontend.image.tag=${IMAGE_TAG} \
+                                --set backend.image.repository=${ECR_REGISTRY}/mern-backend \
+                                --set frontend.image.repository=${ECR_REGISTRY}/mern-frontend \
+                                --set ingress.host=staging.yourdomain.com \
+                                --atomic --timeout 5m
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Production') {
+            when { branch 'main' }
+            input {
+                message "Deploy to Production?"
+                ok "Yes, deploy!"
+                parameters {
+                    string(name: 'IMAGE_TAG_OVERRIDE', defaultValue: '', description: 'Override image tag (leave empty to use current commit)')
+                }
+            }
+            steps {
+                container('helm') {
+                    withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                        script {
+                            def deployTag = params.IMAGE_TAG_OVERRIDE ?: IMAGE_TAG
+                            sh """
+                                helm upgrade --install mern-app ./helm/mern-app \
+                                    --namespace ${NAMESPACE} \
+                                    --create-namespace \
+                                    --set backend.image.tag=${deployTag} \
+                                    --set frontend.image.tag=${deployTag} \
+                                    --set backend.image.repository=${ECR_REGISTRY}/mern-backend \
+                                    --set frontend.image.repository=${ECR_REGISTRY}/mern-frontend \
+                                    --atomic --timeout 5m
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Smoke Tests') {
+            when { branch 'main' }
+            steps {
+                container('kubectl') {
+                    sh """
+                        kubectl rollout status deployment/backend -n ${NAMESPACE} --timeout=3m
+                        kubectl rollout status deployment/frontend -n ${NAMESPACE} --timeout=3m
+                        kubectl get pods -n ${NAMESPACE}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline succeeded! Image tag: ${IMAGE_TAG}"
+        }
+        failure {
+            echo "Pipeline failed! Check the logs above."
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
