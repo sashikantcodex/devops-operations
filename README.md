@@ -12,7 +12,7 @@
 | **Frontend** | React 18, MUI v5, React Query, Nginx |
 | **Backend** | Node.js 20, Express 4, Mongoose, Winston, prom-client |
 | **Database** | MongoDB 7 (K8s StatefulSet with PVC) |
-| **Containerisation** | Docker (multi-stage), Docker Compose |
+| **Containerization** | Docker (multi-stage), Docker Compose |
 | **Orchestration** | Kubernetes (AWS EKS 1.28) |
 | **Package Manager** | Helm 3 |
 | **Infrastructure** | Terraform (AWS EKS + VPC + ECR) |
@@ -305,9 +305,9 @@ Namespace: mern-app
                                    Nginx Ingress
                                         │
                           ┌─────────────┴────────────┐
-                          │  100% traffic to backend  │
-                          │  Service (selector: app=  │
-                          │  backend)                 │
+                          │  Traffic split via replica │
+                          │  ratio to backend Service │
+                          │  (selector: app=backend)  │
                           └─────────────┬─────────────┘
                                         │
            ┌────────────────────────────┴────────────────────────────┐
@@ -623,7 +623,7 @@ devops-operations/
 
 ```bash
 # Clone and start the full stack locally
-git clone https://github.com/YOUR_ORG/devops-operations.git
+git clone https://github.com/sashikantcodex/devops-operations.git
 cd devops-operations/app
 
 docker compose up --build
