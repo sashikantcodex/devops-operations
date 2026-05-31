@@ -69,3 +69,9 @@ variable "ecr_repositories" {
   type        = list(string)
   default     = ["mern-frontend", "mern-backend"]
 }
+
+variable "allowed_cidr_blocks" {
+  description = "CIDRs allowed to reach the EKS public API endpoint (e.g. CI runner IPs, VPN range)"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}

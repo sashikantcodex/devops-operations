@@ -5,23 +5,25 @@ module "eks" {
   cluster_name    = var.cluster_name
   cluster_version = var.cluster_version
 
-  vpc_id                         = module.vpc.vpc_id
-  subnet_ids                     = module.vpc.private_subnets
-  cluster_endpoint_public_access = true
+  vpc_id                               = module.vpc.vpc_id
+  subnet_ids                           = module.vpc.private_subnets
+  cluster_endpoint_public_access       = true
+  cluster_endpoint_public_access_cidrs = var.allowed_cidr_blocks
 
-  # Cluster add-ons
+  # Cluster add-ons — pin versions for reproducible deploys
   cluster_addons = {
     coredns = {
-      most_recent = true
+      addon_version = "v1.10.1-eksbuild.6"
     }
     kube-proxy = {
-      most_recent = true
+      addon_version = "v1.28.4-eksbuild.1"
     }
     vpc-cni = {
-      most_recent = true
+      addon_version = "v1.16.0-eksbuild.1"
     }
     aws-ebs-csi-driver = {
-      most_recent = true
+      addon_version                = "v1.26.1-eksbuild.1"
+      service_account_role_arn     = module.ebs_csi_irsa.iam_role_arn
     }
   }
 
@@ -49,6 +51,38 @@ module "eks" {
   manage_aws_auth_configmap = true
 }
 
+# IRSA for AWS Load Balancer Controller
+module "lb_controller_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name                              = "${var.cluster_name}-aws-load-balancer-controller"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+}
+
+# IRSA for EBS CSI Driver
+module "ebs_csi_irsa" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+  version = "~> 5.0"
+
+  role_name             = "${var.cluster_name}-ebs-csi-driver"
+  attach_ebs_csi_policy = true
+
+  oidc_providers = {
+    main = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:ebs-csi-controller-sa"]
+    }
+  }
+}
+
 # Install AWS Load Balancer Controller via Helm
 resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
@@ -61,7 +95,12 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.cluster_name
   }
 
-  depends_on = [module.eks]
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = module.lb_controller_irsa.iam_role_arn
+  }
+
+  depends_on = [module.eks, module.lb_controller_irsa]
 }
 
 # Install Nginx Ingress Controller

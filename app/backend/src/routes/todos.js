@@ -13,8 +13,8 @@ router.get('/', async (req, res) => {
 
     const todos = await Todo.find(filter)
       .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .limit(Number(limit))
+      .skip((page - 1) * Number(limit));
     const total = await Todo.countDocuments(filter);
     res.json({ todos, total, page: Number(page), pages: Math.ceil(total / limit) });
   } catch (err) {
@@ -37,7 +37,8 @@ router.get('/:id', async (req, res) => {
 // POST create todo
 router.post('/', async (req, res) => {
   try {
-    const todo = new Todo(req.body);
+    const { title, description, priority, tags, dueDate } = req.body;
+    const todo = new Todo({ title, description, priority, tags, dueDate });
     const saved = await todo.save();
     res.status(201).json(saved);
   } catch (err) {

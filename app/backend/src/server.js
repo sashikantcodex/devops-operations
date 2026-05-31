@@ -14,6 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/merndb';
 
+if (!process.env.CORS_ORIGIN && process.env.NODE_ENV === 'production') {
+  throw new Error('CORS_ORIGIN environment variable is required in production');
+}
+
 // Prometheus metrics
 collectDefaultMetrics({ prefix: 'mern_backend_' });
 
@@ -36,8 +40,11 @@ app.get('/ready', async (req, res) => {
   res.status(503).json({ status: 'not ready', db: 'disconnected' });
 });
 
-// Prometheus metrics endpoint
+// Prometheus metrics endpoint — internal cluster access only
 app.get('/metrics', async (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || '';
+  const isInternal = /^(::1|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(ip);
+  if (!isInternal) return res.status(403).json({ error: 'Forbidden' });
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
 });
@@ -57,7 +64,7 @@ app.use((err, req, res, next) => {
 mongoose
   .connect(MONGO_URI)
   .then(() => {
-    logger.info(`MongoDB connected: ${MONGO_URI}`);
+    logger.info(`MongoDB connected: ${MONGO_URI.replace(/:([^@]+)@/, ':****@')}`);
     app.listen(PORT, () => logger.info(`Backend running on port ${PORT}`));
   })
   .catch((err) => {

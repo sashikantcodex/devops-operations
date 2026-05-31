@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Run linter
-        run: npm run lint || true
+        run: npm run lint
 
       - name: Run tests
         run: npm test
@@ -46,7 +46,7 @@ jobs:
           NODE_ENV: test
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           directory: app/backend/coverage
 
@@ -137,5 +137,5 @@ jobs:
         with:
           image-ref: ${{ env.ECR_REGISTRY }}/mern-backend:${{ steps.vars.outputs.sha_short }}
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'

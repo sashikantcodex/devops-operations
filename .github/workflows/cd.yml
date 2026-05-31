@@ -39,6 +39,8 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.image_tag }}" != "" ]; then
             echo "tag=${{ github.event.inputs.image_tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.workflow_run.head_sha }}" != "" ]; then
+            echo "tag=$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
           else
             echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi

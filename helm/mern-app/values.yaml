@@ -56,7 +56,7 @@ mongodb:
     tag: "7.0"
   auth:
     rootUsername: mongo-user
-    rootPassword: mongo-pass
+    rootPassword: ""
     database: merndb
   storage:
     size: 5Gi
