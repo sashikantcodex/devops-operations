@@ -1,23 +1,21 @@
-version: '3.9'
-
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: mongodb
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: mongo-user
-      MONGO_INITDB_ROOT_PASSWORD: mongo-pass
-      MONGO_INITDB_DATABASE: merndb
+      MYSQL_ROOT_PASSWORD: mysql-root-pass
+      MYSQL_DATABASE: merndb
+      MYSQL_USER: mysql-user
+      MYSQL_PASSWORD: mysql-pass
     volumes:
-      - mongo_data:/data/db
-      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+      - mysql_data:/var/lib/mysql
     ports:
-      - "27017:27017"
+      - "3306:3306"
     networks:
       - mern-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,13 +28,17 @@ services:
     restart: unless-stopped
     environment:
       PORT: 5000
-      MONGO_URI: mongodb://mongo-user:mongo-pass@mongodb:27017/merndb?authSource=admin
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: mysql-user
+      MYSQL_PASSWORD: mysql-pass
+      MYSQL_DATABASE: merndb
       CORS_ORIGIN: http://localhost:3000
       NODE_ENV: development
     ports:
-      - "5000:5000"
+      - "5001:5000"
     depends_on:
-      mongodb:
+      mysql:
         condition: service_healthy
     networks:
       - mern-network
@@ -61,25 +63,24 @@ services:
     networks:
       - mern-network
 
-  mongo-express:
-    image: mongo-express:1.0.2
-    container_name: mongo-express
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: phpmyadmin
     restart: unless-stopped
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: mongo-user
-      ME_CONFIG_MONGODB_ADMINPASSWORD: mongo-pass
-      ME_CONFIG_MONGODB_URL: mongodb://mongo-user:mongo-pass@mongodb:27017/
-      ME_CONFIG_BASICAUTH: "false"
+      PMA_HOST: mysql
+      PMA_USER: mysql-user
+      PMA_PASSWORD: mysql-pass
     ports:
-      - "8081:8081"
+      - "8081:80"
     depends_on:
-      mongodb:
+      mysql:
         condition: service_healthy
     networks:
       - mern-network
 
 volumes:
-  mongo_data:
+  mysql_data:
     driver: local
   backend_logs:
     driver: local

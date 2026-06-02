@@ -8,7 +8,7 @@ keywords:
   - mern
   - nodejs
   - react
-  - mongodb
+  - mysql
 maintainers:
   - name: devops-team
     email: devops@yourdomain.com

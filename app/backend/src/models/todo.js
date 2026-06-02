@@ -1,18 +1,20 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../db');
 
-const todoSchema = new mongoose.Schema(
+const Todo = sequelize.define(
+  'Todo',
   {
-    title: { type: String, required: true, trim: true, maxlength: 200 },
-    description: { type: String, trim: true, maxlength: 1000 },
-    completed: { type: Boolean, default: false },
-    priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
-    tags: [{ type: String }],
-    dueDate: { type: Date },
+    title: { type: DataTypes.STRING(200), allowNull: false },
+    description: { type: DataTypes.STRING(1000) },
+    completed: { type: DataTypes.BOOLEAN, defaultValue: false },
+    priority: { type: DataTypes.ENUM('low', 'medium', 'high'), defaultValue: 'medium' },
+    tags: { type: DataTypes.JSON, defaultValue: [] },
+    dueDate: { type: DataTypes.DATE },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    indexes: [{ fields: ['completed'] }, { fields: ['priority'] }],
+  }
 );
 
-todoSchema.index({ completed: 1 });
-todoSchema.index({ priority: 1 });
-
-module.exports = mongoose.model('Todo', todoSchema);
+module.exports = Todo;

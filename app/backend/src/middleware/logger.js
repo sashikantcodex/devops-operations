@@ -14,8 +14,10 @@ const logger = winston.createLogger({
   defaultMeta: { service: 'mern-backend' },
   transports: [
     new winston.transports.Console({ format: consoleFormat }),
-    new winston.transports.File({ filename: '/var/log/app/error.log', level: 'error' }),
-    new winston.transports.File({ filename: '/var/log/app/combined.log' }),
+    ...(process.env.NODE_ENV !== 'test' ? [
+      new winston.transports.File({ filename: '/var/log/app/error.log', level: 'error' }),
+      new winston.transports.File({ filename: '/var/log/app/combined.log' }),
+    ] : []),
   ],
 });
 

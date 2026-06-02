@@ -7,15 +7,17 @@ const logger = require('../middleware/logger');
 router.get('/', async (req, res) => {
   try {
     const { completed, priority, page = 1, limit = 10 } = req.query;
-    const filter = {};
-    if (completed !== undefined) filter.completed = completed === 'true';
-    if (priority) filter.priority = priority;
+    const where = {};
+    if (completed !== undefined) where.completed = completed === 'true';
+    if (priority) where.priority = priority;
 
-    const todos = await Todo.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip((page - 1) * Number(limit));
-    const total = await Todo.countDocuments(filter);
+    const offset = (Number(page) - 1) * Number(limit);
+    const { count: total, rows: todos } = await Todo.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset,
+    });
     res.json({ todos, total, page: Number(page), pages: Math.ceil(total / limit) });
   } catch (err) {
     logger.error('GET /todos error:', err);
@@ -26,7 +28,7 @@ router.get('/', async (req, res) => {
 // GET single todo
 router.get('/:id', async (req, res) => {
   try {
-    const todo = await Todo.findById(req.params.id);
+    const todo = await Todo.findByPk(req.params.id);
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
     res.json(todo);
   } catch (err) {
@@ -38,9 +40,8 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { title, description, priority, tags, dueDate } = req.body;
-    const todo = new Todo({ title, description, priority, tags, dueDate });
-    const saved = await todo.save();
-    res.status(201).json(saved);
+    const todo = await Todo.create({ title, description, priority, tags, dueDate });
+    res.status(201).json(todo);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -49,11 +50,9 @@ router.post('/', async (req, res) => {
 // PUT update todo
 router.put('/:id', async (req, res) => {
   try {
-    const todo = await Todo.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!todo) return res.status(404).json({ error: 'Todo not found' });
+    const [updated] = await Todo.update(req.body, { where: { id: req.params.id } });
+    if (!updated) return res.status(404).json({ error: 'Todo not found' });
+    const todo = await Todo.findByPk(req.params.id);
     res.json(todo);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -63,9 +62,10 @@ router.put('/:id', async (req, res) => {
 // DELETE todo
 router.delete('/:id', async (req, res) => {
   try {
-    const todo = await Todo.findByIdAndDelete(req.params.id);
+    const todo = await Todo.findByPk(req.params.id);
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
-    res.json({ message: 'Todo deleted', id: req.params.id });
+    await todo.destroy();
+    res.json({ message: 'Todo deleted', id: todo.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -74,7 +74,7 @@ router.delete('/:id', async (req, res) => {
 // PATCH toggle completed
 router.patch('/:id/toggle', async (req, res) => {
   try {
-    const todo = await Todo.findById(req.params.id);
+    const todo = await Todo.findByPk(req.params.id);
     if (!todo) return res.status(404).json({ error: 'Todo not found' });
     todo.completed = !todo.completed;
     await todo.save();

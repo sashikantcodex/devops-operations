@@ -41,8 +41,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-MongoDB URI
+MySQL Host
 */}}
-{{- define "mern-app.mongoUri" -}}
-{{- printf "mongodb://%s:%s@mongodb-0.mongodb.%s.svc.cluster.local:27017/%s?authSource=admin" .Values.mongodb.auth.rootUsername .Values.mongodb.auth.rootPassword .Values.global.namespace .Values.mongodb.auth.database }}
+{{- define "mern-app.mysqlHost" -}}
+{{- printf "mysql-0.mysql.%s.svc.cluster.local" .Values.global.namespace }}
 {{- end }}

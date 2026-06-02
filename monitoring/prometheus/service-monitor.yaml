@@ -61,11 +61,11 @@ spec:
           annotations:
             summary: "Pod {{ $labels.pod }} restarting frequently"
 
-        - alert: MongoDBDown
+        - alert: MySQLDown
           expr: |
-            kube_statefulset_status_ready_replicas{namespace="mern-app", statefulset="mongodb"} < 1
+            kube_statefulset_status_ready_replicas{namespace="mern-app", statefulset="mysql"} < 1
           for: 1m
           labels:
             severity: critical
           annotations:
-            summary: "MongoDB StatefulSet has 0 ready replicas"
+            summary: "MySQL StatefulSet has 0 ready replicas"

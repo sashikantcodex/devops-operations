@@ -1,43 +1,48 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: mongodb
+  name: mysql
   namespace: mern-app
   labels:
-    app: mongodb
+    app: mysql
 spec:
-  serviceName: mongodb
+  serviceName: mysql
   replicas: 1
   selector:
     matchLabels:
-      app: mongodb
+      app: mysql
   template:
     metadata:
       labels:
-        app: mongodb
+        app: mysql
     spec:
       terminationGracePeriodSeconds: 30
       containers:
-        - name: mongodb
-          image: mongo:7.0
+        - name: mysql
+          image: mysql:8.0
           ports:
-            - containerPort: 27017
+            - containerPort: 3306
           env:
-            - name: MONGO_INITDB_ROOT_USERNAME
+            - name: MYSQL_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-username
-            - name: MONGO_INITDB_ROOT_PASSWORD
+                  name: mysql-secret
+                  key: mysql-root-password
+            - name: MYSQL_DATABASE
               valueFrom:
                 secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-password
-            - name: MONGO_INITDB_DATABASE
+                  name: mysql-secret
+                  key: mysql-database
+            - name: MYSQL_USER
               valueFrom:
                 secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-database
+                  name: mysql-secret
+                  key: mysql-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
           resources:
             requests:
               memory: "256Mi"
@@ -47,22 +52,22 @@ spec:
               cpu: "500m"
           livenessProbe:
             exec:
-              command: ["mongosh", "--eval", "db.adminCommand('ping')"]
+              command: ["mysqladmin", "ping", "-h", "localhost"]
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             exec:
-              command: ["mongosh", "--eval", "db.adminCommand('ping')"]
+              command: ["mysqladmin", "ping", "-h", "localhost"]
             initialDelaySeconds: 10
             periodSeconds: 5
           volumeMounts:
-            - name: mongo-data
-              mountPath: /data/db
+            - name: mysql-data
+              mountPath: /var/lib/mysql
   volumeClaimTemplates:
     - metadata:
-        name: mongo-data
+        name: mysql-data
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:

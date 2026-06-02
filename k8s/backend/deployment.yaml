@@ -40,18 +40,25 @@ spec:
             - configMapRef:
                 name: backend-config
           env:
-            - name: MONGO_URI
-              value: "mongodb://$(MONGO_USER):$(MONGO_PASS)@mongodb-0.mongodb.mern-app.svc.cluster.local:27017/merndb?authSource=admin"
-            - name: MONGO_USER
+            - name: MYSQL_HOST
+              value: "mysql-0.mysql.mern-app.svc.cluster.local"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_DATABASE
               valueFrom:
                 secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-username
-            - name: MONGO_PASS
+                  name: mysql-secret
+                  key: mysql-database
+            - name: MYSQL_USER
               valueFrom:
                 secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-password
+                  name: mysql-secret
+                  key: mysql-user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
           resources:
             requests:
               memory: "128Mi"
